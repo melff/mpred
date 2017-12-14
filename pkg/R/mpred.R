@@ -1,26 +1,180 @@
-sumz <- function(p,alpha=.05){
+#' Generic function to preduce predictive margins
+#' 
+#' @export
+predmarg <- function(obj,
+                     settings,
+                     restrict,
+                     subset,
+                     setup=NULL,
+                     safe.setup=NULL,
+                     ...) UseMethod("predmarg")
+
+predmarg.default <- function(obj,
+                             settings,
+                             restrict,
+                             subset,
+                             setup=NULL,
+                             safe.setup=NULL,
+                             qfunc=qnorm,
+                             alpha=0.05,
+                             ...) {
+
+    data <- get_data(obj)
+
+    nact <- na.action(obj)
+    if(length(nact))
+        data <- data[-nact,,drop=FALSE]
+    w <- weights(obj)
+    if(!length(w))
+        w <- rep(1,nrow(data))
+
+    if(!missing(subset)){
+        subset <- eval(substitute(subset),data,parent.frame())
+        if(!is.logical(subset)) stop("'subset' should be evaluate as logical")
+
+        data <- data[subset,,drop=FALSE]
+        w <- w[subset]
+    }
+
     
-    mean <- weighted.mean(p$fit,w=p$w,na.rm=TRUE)
-    mean.var <- weighted.mean(p$w*p$se.fit^2,w=p$w,na.rm=TRUE)
-    var.mean <- mean.var/sum(p$w[is.finite(p$se.fit)])
-    var <- mean.var + var.mean
+    settings <- get_settings(data,
+                             settings,
+                             parent=parent.frame(),
+                             ...)
+
+    n <- nrow(data)
+    m <- nrow(settings)
     
-    se <- sqrt(var)
+    i <- 1:n
+    j <- 1:m
+
     
-    upr <- mean + se*qnorm(1-alpha/2)
-    lwr <- mean + se*qnorm(alpha/2)
+    data$.i <- i
+    data$.w <- w
+    settings$.j <- j
+
+    i <- rep(i,m)
+    j <- rep(j,each=n)
+
+    nd <- names(data)
+    ns <- names(settings)
+    nd1 <- setdiff(nd,ns)
+    ns2 <- setdiff(ns,nd)
+
+    if(!missing(restrict)){
+        restrict <- eval(substitute(restrict),data,parent.frame())
+        if(!is.logical(restrict)) stop("'restrict' should be evaluate as logical")
+        newdata <- cbind(data,settings[j,ns2,drop=FALSE])
+        newdata[restrict,ns] <- settings[j[restrict],,drop=FALSE]
+    }
+    else 
+        newdata <- cbind(data[i,nd1,drop=FALSE],settings[j,,drop=FALSE])
+
+    if(!missing(safe.setup)){
+        for(jj in 1:m){
+            
+            e <- as.environment(settings[jj,ns2])
+            parent.env(e) <- parent.frame()
+            e <- evalq(environment(),newdata,e)
+            eval(setup,e)
+            l <- as.data.frame(as.list(e))
+            names.l <- names(l)
+            settings[.j==jj,names.l] <- l
+        }
+    }
+
+    if(!missing(setup)){
+        e <- as.environment(newdata[ns2])
+        parent.env(e) <- parent.frame()
+        e <- evalq(environment(),newdata,e)
+        eval(setup,e)
+        l <- as.data.frame(as.list(e))
+        names.l <- names(l)
+        newdata[names.l] <- l
+    }
     
-    c(mean=mean,var=var,se=se,lwr=lwr,upr=upr)
+    w <- newdata$.w
+    
+    mu <- predict_response(obj,newdata)
+    sum.w.j <- as.vector(rowsum(w,j))
+    mu.bar.j <- rowsum(w*mu,j)/sum.w.j
+    num.eqs <- ncol(mu.bar.j)
+
+    cov.theta <- vcov(obj)
+    if(num.eqs == 1){
+        mu.theta <- mu_theta(obj,mu,newdata)
+        mu.theta.bar.j <- rowsum(w*mu.theta,j)/sum.w.j
+        var.mu.bar.j <- rowSums(mu.theta.bar.j*(mu.theta.bar.j%*%cov.theta))
+        se.mu.bar.j <- sqrt(var.mu.bar.j)
+
+        lower <- qfunc(p=alpha/2,mean=mu.bar.j,sd=se.mu.bar.j)
+        upper <- qfunc(p=1-alpha/2,mean=mu.bar.j,sd=se.mu.bar.j)
+        
+        res <- data.frame(pred=mu.bar.j,
+                          var.pred=var.mu.bar.j,
+                          se.pred=se.mu.bar.j,
+                          lower=lower,
+                          upper=upper)
+        res <- cbind(res,settings)
+        res$.j <- NULL
+        res
+    }
+    else {
+        res <- list()
+        for(k in 1:num.eqs){
+            mu.theta <- mu_theta(obj,mu,newdata,k)
+            mu.theta.bar.j <- rowsum(w*mu.theta,j)/sum.w.j
+            var.mu.bar.j <- rowSums(mu.theta.bar.j*(mu.theta.bar.j%*%cov.theta))
+            se.mu.bar.j <- sqrt(var.mu.bar.j)
+
+            mu.bar.jk <- mu.bar.j[,k]
+            
+            lower <- qfunc(p=alpha/2,mean=mu.bar.jk,sd=se.mu.bar.j)
+            upper <- qfunc(p=1-alpha/2,mean=mu.bar.jk,sd=se.mu.bar.j)
+            
+            res.k <- data.frame(pred=mu.bar.jk,
+                                var.pred=var.mu.bar.j,
+                                se.pred=se.mu.bar.j,
+                                lower=lower,
+                                upper=upper,
+                                response=k)
+            res.k <- cbind(res.k,settings)
+            res.k$.j <- NULL
+            res[[k]] <- res.k
+        }
+        res <- do.call(rbind,res)
+        if(length(colnames(mu)))
+            res$response <- factor(res$response,labels=colnames(mu))
+        res
+    }
+    
 }
 
+get_data <- function(obj) UseMethod("get_data")
 
-mpredict_vector <- function(obj,settings,subset,parent,setup,...){
+get_data.lm <- function(obj){
 
-    data <- get_all_vars(obj$formula,obj$data)
-    mf <- model.frame(obj)
-    ii <- rownames(mf)
-    data <- data[ii,]
-    w <- weights(obj)
+    terms <- obj$terms
+    env <- environment(terms)
+
+    call <- obj$call
+    data <- eval(call$data,parent.frame())
+    wc <- call$weights
+    res <- get_all_vars(obj,data=data)
+    if(length(wc)){
+        wn <- all.vars(wc)
+        wdf <- data.frame(w=eval(wc,data,
+                                 parent.frame()))
+        names(wdf) <- wn
+        res <- cbind(res,wdf)
+    }
+    res
+}
+
+get_settings <- function(data,
+                         settings,
+                         parent,
+                         ...){
 
     if(missing(settings))
         settings <- eval(substitute(list(...)),data,parent)
@@ -33,183 +187,46 @@ mpredict_vector <- function(obj,settings,subset,parent,setup,...){
                               names=names(settings))
         settings <- expand.grid(settings)
     }
-    
-    if(!missing(subset)){
-        subset <- eval(substitute(subset),subset,parent)
-        if(!is.logical(subset)) stop("'subset' should be evaluate as logical")
-    }
-    else {
-        subset <- rep(TRUE,nrow(data))
-    }
 
-    ns <- names(settings)
-    ns1 <- intersect(names(data),ns)
-    ns2 <- setdiff(ns,names(data))
-    
-    n <- nrow(settings)
-
-    pr <- list()
-    for(i in 1:n){
-        data.i <- data
-        data.i[subset,ns1] <- settings[i,ns1,drop=FALSE]
-        if(length(setup)){
-            ee <- settings[i,ns2]
-            if(length(ee)){
-                ee <- as.environment(ee)
-                parent.env(ee) <- parent
-            }
-            else
-                ee <- parent
-            e <- evalq(environment(), data.i, ee)
-            eval(setup,e)
-            l <- as.data.frame(as.list(e))
-            names.l <- names(l)
-            data.i[subset,names.l] <- l[subset,,drop=FALSE]
-        }
-        data.i[ns2] <- NULL
-        pr.i <- as.data.frame(
-            predict(object=obj,newdata=data.i,
-                    type="response",se.fit=TRUE))
-        pr.i[["__id__"]] <-i
-        pr.i$w <- w
-        pr[[i]] <- pr.i
-    }
-    
-    prdf <- do.call(rbind,pr)
-    
-    list(
-        prdf     = prdf,
-        id       = 1:n,
-        settings = settings
-    )
-    
+    settings
 }
 
-#' Generic function to preduce predictive margins
-#' 
-#' @export
-mpredict <- function(obj,...) UseMethod("mpredict")
+predict_response <- function(obj,data) UseMethod("predict_response")
+predict_response.lm <- function(obj,data) predict(obj,newdata=data,type="response")
+predict_response.glm <- function(obj,data) predict(obj,newdata=data,type="response")
 
-#' Default method to preduce predictive margins
-#' 
-#' @export
-mpredict.default <- function(obj,
-                             ...,
-                             settings,
-                             subset,
-                             setup=NULL){
-    if(missing(setup))
-        setup <- NULL
-    else
-        setup <- substitute(setup)
-    mpv <- mpredict_vector(obj=obj,
-                           settings=settings,
-                           subset=subset,
-                           parent=parent.frame(),
-                           setup=setup,
-                           ...)
-    prdf <-     mpv$prdf
-    settings <- mpv$settings
-    id <-       prdf[["__id__"]]
+predict_response.mblogit <- function(obj,data)
+    predict(obj,newdata=data,type="response")
 
-    prdf <- split(prdf,id)
-    summaries <- sapply(prdf,sumz)
-    res <- cbind(settings,t(summaries))
-    res[["__id__"]]<- NULL
-    res
+
+mu_theta <- function(obj,mu,data,k) UseMethod("mu_theta")
+
+mu_theta.lm <- function(obj,mu,data,k){
+    X <- model.matrix(obj,data=data)
+    X
 }
 
-
-#' Method for 'mclogit' objects to preduce predictive margins
-#' 
-#' @export
-mpredict.mclogit <- function(obj,
-                             settings,
-                             categories,
-                             subset,
-                             setup,
-                             ...){
-
-    categs <- eval(substitute(categories),obj$data,parent.frame())
-    categories <- deparse(substitute(categories))
-    if(missing(setup))
-        setup <- NULL
-    else
-        setup <- substitute(setup)
-    mpv <- mpredict_vector(obj=obj,
-                           settings=settings,
-                           subset=subset,
-                           parent=parent.frame(),
-                           setup=setup,
-                           ...)
-    
-    prdf <-     mpv$prdf
-    settings <- mpv$settings
-    id <-       prdf[["__id__"]]
-
-    categs <- rep(categs,length=nrow(prdf))
-    ucategs <- sort(unique(categs))
-    
-    id.categs <- interaction(categs,id)
-    
-    prdf <- split(prdf,id.categs)
-    summaries <- sapply(prdf,sumz)
-
-    s.id <- 1:nrow(settings)
-
-    s.id <- rep(s.id,each=length(ucategs))
-    settings <- settings[s.id,,drop=FALSE]
-    categs <- rep(categs,length=length(s.id))
-    categs <- data.frame(categs)
-    names(categs) <- categories
-    
-    cbind(settings,categs,
-          t(summaries))
+mu_theta.glm <- function(obj,mu,data,k){
+    X <- model.matrix(obj,data=data)
+    coef <- coef(obj)
+    eta <- X%*%coef
+    mu_eta <- obj$family$mu.eta(eta)
+    X*as.vector(mu_eta)
 }
 
-#' Method for 'mblogit' objects to preduce predictive margins
-#' 
-#' @export
-mpredict.mblogit <- function(obj,
-                             ...,
-                             settings,
-                             subset,
-                             setup=NULL){
-    if(missing(setup))
-        setup <- NULL
-    else
-        setup <- substitute(setup)
-    mpv <- mpredict_vector(obj=obj,
-                           settings=settings,
-                           subset=subset,
-                           parent=parent.frame(),
-                           setup=setup,
-                           ...)
-    prdf <-     mpv$prdf
-    settings <- mpv$settings
-    id <-       prdf[["__id__"]]
+mu_theta.mblogit <- function(obj,mu,data,k){
+    X <- model.matrix(obj,data=data)
+    coef <- coef(obj)
+    nc <- names(coef)
+    nc <- strsplit(nc,"~")
+    ync <- sapply(nc,"[",1)
+    xnc <- sapply(nc,"[",2)
 
-    fitnames <- grep("^fit.",names(prdf),value=TRUE)
-    sefitnames <- grep("^se.fit.",names(prdf),value=TRUE)
-    resp.categs <- levels(model.response(obj$model))
-    resp.name <- names(obj$model)[1]
-    
-    res <- list()
-    for(i in seq_along(fitnames)){
-        f <- fitnames[i]
-        s <- sefitnames[i]
-        prdf.i <- data.frame(fit=prdf[[f]],
-                             se.fit=prdf[[s]],
-                             w=prdf$w)
-        prdf.i <- split(prdf.i,id)
-        summaries.i <- sapply(prdf.i,sumz)
-        res.i <- cbind(settings,t(summaries.i))
-        res.i[[resp.name]] <- rep(resp.categs[i],nrow(res.i))
-        res.i[["__id__"]]<- NULL
-        res[[i]] <- res.i
-    }
-    res <- do.call(rbind,res)
-    res[[resp.name]] <- factor(res[[resp.name]],
-                               levels=resp.categs)
-    res
+    w <- -mu[,k]*mu
+    if(k>1)
+        w[,k]<-w[,k]+mu[,k]
+    w <- w[,-1,drop=FALSE]
+    h <- match(ync,unique(ync))
+        
+    w[,h]*X[,xnc]
 }
