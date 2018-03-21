@@ -9,6 +9,7 @@ predmarg <- function(obj,
                      safe.setup=NULL,
                      ...) UseMethod("predmarg")
 
+#' @export
 predmarg.default <- function(obj,
                              settings,
                              restrict,
@@ -48,7 +49,6 @@ predmarg.default <- function(obj,
     i <- 1:n
     j <- 1:m
 
-    
     data$.i <- i
     data$.w <- w
     settings$.j <- j
@@ -60,7 +60,7 @@ predmarg.default <- function(obj,
     ns <- names(settings)
     nd1 <- setdiff(nd,ns)
     ns2 <- setdiff(ns,nd)
-
+    
     if(!missing(restrict)){
         restrict <- eval(substitute(restrict),data,parent.frame())
         if(!is.logical(restrict)) stop("'restrict' should be evaluate as logical")
@@ -73,13 +73,13 @@ predmarg.default <- function(obj,
     if(!missing(safe.setup)){
         for(jj in 1:m){
             
-            e <- as.environment(settings[jj,ns2])
+            e <- as.environment(settings[jj,ns2,drop=FALSE])
             parent.env(e) <- parent.frame()
-            e <- evalq(environment(),newdata,e)
-            eval(setup,e)
+            e <- evalq(environment(),newdata[j==jj,,drop=FALSE],e)
+            eval(substitute(safe.setup),e)
             l <- as.data.frame(as.list(e))
             names.l <- names(l)
-            settings[.j==jj,names.l] <- l
+            newdata[j==jj,names.l] <- l
         }
     }
 
@@ -87,12 +87,11 @@ predmarg.default <- function(obj,
         e <- as.environment(newdata[ns2])
         parent.env(e) <- parent.frame()
         e <- evalq(environment(),newdata,e)
-        eval(setup,e)
+        eval(substitute(setup),e)
         l <- as.data.frame(as.list(e))
         names.l <- names(l)
         newdata[names.l] <- l
     }
-    
     w <- newdata$.w
     
     mu <- predict_response(obj,newdata)
@@ -150,8 +149,10 @@ predmarg.default <- function(obj,
     
 }
 
+#' @export
 get_data <- function(obj) UseMethod("get_data")
 
+#' @export
 get_data.lm <- function(obj){
 
     terms <- obj$terms
@@ -171,6 +172,7 @@ get_data.lm <- function(obj){
     res
 }
 
+#' @export
 get_settings <- function(data,
                          settings,
                          parent,

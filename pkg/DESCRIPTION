@@ -3,7 +3,7 @@ Type: Package
 Title: Generic Predictive Margins
 Version: 0.1
 Date: 2017-12-12
-Author: Martin Elff (with contributions from Christopher N. Lawrence, Dave Atkins, Jason W. Morgan, Achim Zeileis)
+Author: Martin Elff
 Maintainer: Martin Elff <martin@elff.eu>
 Description: 
 License: GPL-2
