@@ -6,7 +6,7 @@ predmarg <- function(obj,
                      restrict,
                      subset,
                      setup=NULL,
-                     safe.setup=NULL,
+                     quick.setup=NULL,
                      ...) UseMethod("predmarg")
 
 #' @export
@@ -15,7 +15,7 @@ predmarg.default <- function(obj,
                              restrict,
                              subset,
                              setup=NULL,
-                             safe.setup=NULL,
+                             quick.setup=NULL,
                              qfunc=qnorm,
                              alpha=0.05,
                              ...) {
@@ -70,28 +70,28 @@ predmarg.default <- function(obj,
     else 
         newdata <- cbind(data[i,nd1,drop=FALSE],settings[j,,drop=FALSE])
 
-    if(!missing(safe.setup)){
+    if(!missing(setup)){
         for(jj in 1:m){
-            
             e <- as.environment(settings[jj,ns2,drop=FALSE])
             parent.env(e) <- parent.frame()
             e <- evalq(environment(),newdata[j==jj,,drop=FALSE],e)
-            eval(substitute(safe.setup),e)
+            eval(substitute(setup),e)
             l <- as.data.frame(as.list(e))
             names.l <- names(l)
             newdata[j==jj,names.l] <- l
         }
     }
 
-    if(!missing(setup)){
+    if(!missing(quick.setup)){
         e <- as.environment(newdata[ns2])
         parent.env(e) <- parent.frame()
         e <- evalq(environment(),newdata,e)
-        eval(substitute(setup),e)
+        eval(substitute(quick.setup),e)
         l <- as.data.frame(as.list(e))
         names.l <- names(l)
         newdata[names.l] <- l
     }
+
     w <- newdata$.w
     
     mu <- predict_response(obj,newdata)
