@@ -1,6 +1,50 @@
 #' Generic function to preduce predictive margins
 #' 
 #' @export
+#'
+#' @param obj a model object, e.g. returned by \code{lm}, \code{glm}, etc.
+#' @param settings an optional data frame of settings for independent
+#'     variables. 
+#' @param restrict an optional logical vector that restricts the application of the
+#'     settings for independent variables to a subset of observations
+#' @param subset an optional logical vector that defines a subset for which a
+#'     predictive margin is computed
+#' @param setup an optional expression that is evaluated for each setting,
+#'     i.e. individually for each row of the settings data frame. Can be
+#'     used to modify independent variables.
+#' @param quick.setup an optional expression that is evaluated in the
+#'     expanded data set that contains the original model data and
+#'     \emph{all} settings of the designated independent variables for which
+#'     predictive margins computed. Using this argument is quicker than the
+#'     'setup' argument, but also more risky - the length of the expanded
+#'     data might not exactly be as expected.
+#' @param qfunc a function to compute prediction intervals.
+#' @param alpha the cut-off probability of the prediction intervals
+#'     (i.e. such that the confidence level is 1-alpha/2)
+#' @param \dots optional vectors of values of independent variabls. These further
+#'     arguments, if present, are used to create a data frame of settings,
+#'     using \code{\link{expand.grid}}.
+#' 
+#' @details The generic function \code{predmarg} computes predictive
+#'     margins for various settings of the independent variables. It is also
+#'     possible to provide settings for independent variables that are
+#'     included in the model, but that are used in the \code{setup}
+#'     expression to transform independent variables. See the examples below.
+#'
+#' @return a data frame with the following variables:
+#' \item{pred}{the mean prediction for the setting of the independent
+#'     variables}
+#' \item{var.pred}{the (estimated) variance of the mean prediction}
+#' \item{se.pred}{the standard error of prediction, i.e. the square root of
+#'     the variance of the mean prediction}
+#' \item{lower}{lower prediction interval computed with \code{qfunc}}
+#' \item{upper}{upper prediction interval computed with \code{qfunc}}
+#' \item{\dots}{the independent variables for which values are set to create
+#'     the predictions are also included in the resulting data frame.}
+#'
+#' @example examples/mpred-xmpl.R
+
+
 predmarg <- function(obj,
                      settings,
                      restrict,
