@@ -7,6 +7,8 @@ predmarg <- function(obj,
                      subset,
                      setup=NULL,
                      quick.setup=NULL,
+                     qfunc=qnorm,
+                     alpha=0.05,
                      ...) UseMethod("predmarg")
 
 #' @export
