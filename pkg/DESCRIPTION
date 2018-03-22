@@ -9,4 +9,6 @@ Description:
 License: GPL-2
 LazyLoad: Yes
 Depends: R (>= 3.3.3)
+Imports: parallel
+Suggests: mclogit, magrittr, car, MASS, ggplot2
 RoxygenNote: 6.0.1

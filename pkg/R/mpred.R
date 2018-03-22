@@ -1,6 +1,7 @@
 #' Generic function to preduce predictive margins
 #' 
 #' @export
+#' @import parallel 
 #'
 #' @param obj a model object, e.g. returned by \code{lm}, \code{glm}, etc.
 #' @param settings an optional data frame of settings for independent
