@@ -5,22 +5,20 @@
 #' @param obj a model object, e.g. returned by \code{lm}, \code{glm}, etc.
 #' @param settings an optional data frame of settings for independent
 #'     variables. 
-#' @param restrict an optional logical vector that restricts the application of the
-#'     settings for independent variables to a subset of observations
 #' @param subset an optional logical vector that defines a subset for which a
 #'     predictive margin is computed
+#' @param groups a variable that defines groups for which predictive margines
+#'     are computed. This variable has to have the same number of observations
+#'     as the data to which the model was fitted.
 #' @param setup an optional expression that is evaluated for each setting,
 #'     i.e. individually for each row of the settings data frame. Can be
 #'     used to modify independent variables.
-#' @param quick.setup an optional expression that is evaluated in the
-#'     expanded data set that contains the original model data and
-#'     \emph{all} settings of the designated independent variables for which
-#'     predictive margins computed. Using this argument is quicker than the
-#'     'setup' argument, but also more risky - the length of the expanded
-#'     data might not exactly be as expected.
-#' @param qfunc a function to compute prediction intervals.
-#' @param alpha the cut-off probability of the prediction intervals
-#'     (i.e. such that the confidence level is 1-alpha/2)
+#' @param cifunc a function to compute prediction intervals.
+#' @param level level of confidence intervals of predictions.
+#' @param parallel logical value that determines whether predictions for
+#'     individual settings are computed in parallel. (Does not yet work on
+#'     windows.)
+#' @param mc.cores number of CPU cores used for parallel processing.
 #' @param \dots optional vectors of values of independent variabls. These further
 #'     arguments, if present, are used to create a data frame of settings,
 #'     using \code{\link{expand.grid}}.
@@ -47,27 +45,28 @@
 
 predmarg <- function(obj,
                      settings,
-                     restrict,
+                     data,
                      subset,
+                     groups=NULL,
                      setup=NULL,
-                     quick.setup=NULL,
-                     qfunc=qnorm,
-                     alpha=0.05,
-                     ...) UseMethod("predmarg")
+                     cifunc=cinorm,
+                     level=0.95,
+                     parallel=TRUE,
+                     mc.cores=max.cores,
+                     ...) {
 
-#' @export
-predmarg.default <- function(obj,
-                             settings,
-                             restrict,
-                             subset,
-                             setup=NULL,
-                             quick.setup=NULL,
-                             qfunc=qnorm,
-                             alpha=0.05,
-                             ...) {
+    if(missing(data))
+        data <- get_data(obj)
 
-    data <- get_data(obj)
-
+    if(!missing(groups)){
+        groups <- substitute(groups)
+        groups.name <- deparse(groups)
+        groups <- eval(groups,data,parent.frame())
+        attr(groups,"name") <- groups.name
+    }
+    else
+        groups <- NULL
+    
     nact <- na.action(obj)
     if(length(nact))
         data <- data[-nact,,drop=FALSE]
@@ -91,7 +90,7 @@ predmarg.default <- function(obj,
 
     n <- nrow(data)
     m <- nrow(settings)
-    
+
     i <- 1:n
     j <- 1:m
 
@@ -99,100 +98,237 @@ predmarg.default <- function(obj,
     data$.w <- w
     settings$.j <- j
 
-    i <- rep(i,m)
-    j <- rep(j,each=n)
+    if(!missing(setup))
+        setup <- substitute(setup)
+    else
+        setup <- NULL
 
-    nd <- names(data)
-    ns <- names(settings)
-    nd1 <- setdiff(nd,ns)
-    ns2 <- setdiff(ns,nd)
-    
-    if(!missing(restrict)){
-        restrict <- eval(substitute(restrict),data,parent.frame())
-        if(!is.logical(restrict)) stop("'restrict' should be evaluate as logical")
-        newdata <- cbind(data,settings[j,ns2,drop=FALSE])
-        newdata[restrict,ns] <- settings[j[restrict],,drop=FALSE]
+    if(parallel){
+
+        max.cores <- detectCores(logical = TRUE)
+        if(!length(max.cores))
+            max.cores <- getOption("mc.cores",2L)
+        else if(mc.cores > max.cores)
+            message("\nMaximum number of cores available is ",max.cores,".")
+        
+        mc.cores <- min(mc.cores,max.cores)
+        message("Using ",mc.cores," cores ...\n")
+
+        smries <- mclapply(j,
+                           predmarg1,
+                           obj=obj,
+                           data=data,
+                           settings=settings,
+                           groups=groups,
+                           setup=setup,
+                           cifunc=cifunc,
+                           level=level,
+                           parent=parent.frame(),
+                           mc.cores=mc.cores)
     }
-    else 
-        newdata <- cbind(data[i,nd1,drop=FALSE],settings[j,,drop=FALSE])
-
-    if(!missing(setup)){
-        for(jj in 1:m){
-            e <- as.environment(settings[jj,ns2,drop=FALSE])
-            parent.env(e) <- parent.frame()
-            e <- evalq(environment(),newdata[j==jj,,drop=FALSE],e)
-            eval(substitute(setup),e)
-            l <- as.data.frame(as.list(e))
-            names.l <- names(l)
-            newdata[j==jj,names.l] <- l
-        }
+    else{
+        
+        smries <- lapply(j,
+                         predmarg1,
+                         obj=obj,
+                         data=data,
+                         settings=settings,
+                         groups=groups,
+                         setup=setup,
+                         cifunc=cifunc,
+                         level=level,
+                         parent=parent.frame())
     }
 
-    if(!missing(quick.setup)){
-        e <- as.environment(newdata[ns2])
-        parent.env(e) <- parent.frame()
-        e <- evalq(environment(),newdata,e)
-        eval(substitute(quick.setup),e)
+    do.call(rbind,smries)
+}
+
+predmarg1 <- function(obj,...) UseMethod("predmarg1")
+
+predmarg1.default <- function(obj,
+                              j,
+                              data,
+                              settings,
+                              groups,
+                              setup,
+                              cifunc,
+                              level,
+                              parent){
+    n <- nrow(data)
+    settings.j <- settings[j,,drop=FALSE]
+    nd1 <- setdiff(names(data),names(settings))
+    newdata <- data.frame(data[,nd1],settings.j,
+                          row.names=1:n)
+    if(length(setup)){
+        e <- evalq(environment(),newdata,parent)
+        eval(setup,e)
         l <- as.data.frame(as.list(e))
         names.l <- names(l)
         newdata[names.l] <- l
     }
-
     w <- newdata$.w
     
     mu <- predict_response(obj,newdata)
-    sum.w.j <- as.vector(rowsum(w,j))
-    mu.bar.j <- rowsum(w*mu,j)/sum.w.j
-    num.eqs <- ncol(mu.bar.j)
-
+    mu.theta <- mu_theta(obj,mu,newdata)
     cov.theta <- vcov(obj)
-    if(num.eqs == 1){
-        mu.theta <- mu_theta(obj,mu,newdata)
-        mu.theta.bar.j <- rowsum(w*mu.theta,j)/sum.w.j
-        var.mu.bar.j <- rowSums(mu.theta.bar.j*(mu.theta.bar.j%*%cov.theta))
-        se.mu.bar.j <- sqrt(var.mu.bar.j)
-
-        lower <- qfunc(p=alpha/2,mean=mu.bar.j,sd=se.mu.bar.j)
-        upper <- qfunc(p=1-alpha/2,mean=mu.bar.j,sd=se.mu.bar.j)
+    
+    if(!length(groups)){
         
-        res <- data.frame(pred=mu.bar.j,
-                          var.pred=var.mu.bar.j,
-                          se.pred=se.mu.bar.j,
+        sum.w <- sum(w)
+        mu.bar <- sum(w*mu)/sum.w
+        mu.bar.theta <- colSums(w*mu.theta)/sum.w
+        var.mu.bar <- mu.bar.theta %*% cov.theta %*% mu.bar.theta
+        se.mu.bar <- sqrt(var.mu.bar)
+        ci <- cifunc(mean=mu.bar,sd=se.mu.bar,level=level)
+        lower <- ci$lower
+        upper <- ci$upper
+        
+        res <- data.frame(pred=mu.bar,
+                          var.pred=var.mu.bar,
+                          se.pred=se.mu.bar,
                           lower=lower,
                           upper=upper)
-        res <- cbind(res,settings)
-        res$.j <- NULL
-        res
+        res <- cbind(res,settings.j)
     }
     else {
-        res <- list()
-        for(k in 1:num.eqs){
-            mu.theta <- mu_theta(obj,mu,newdata,k)
-            mu.theta.bar.j <- rowsum(w*mu.theta,j)/sum.w.j
-            var.mu.bar.j <- rowSums(mu.theta.bar.j*(mu.theta.bar.j%*%cov.theta))
-            se.mu.bar.j <- sqrt(var.mu.bar.j)
-
-            mu.bar.jk <- mu.bar.j[,k]
-            
-            lower <- qfunc(p=alpha/2,mean=mu.bar.jk,sd=se.mu.bar.j)
-            upper <- qfunc(p=1-alpha/2,mean=mu.bar.jk,sd=se.mu.bar.j)
-            
-            res.k <- data.frame(pred=mu.bar.jk,
-                                var.pred=var.mu.bar.j,
-                                se.pred=se.mu.bar.j,
-                                lower=lower,
-                                upper=upper,
-                                response=k)
-            res.k <- cbind(res.k,settings)
-            res.k$.j <- NULL
-            res[[k]] <- res.k
-        }
-        res <- do.call(rbind,res)
-        if(length(colnames(mu)))
-            res$response <- factor(res$response,labels=colnames(mu))
-        res
+        
+        if(length(groups)!=nrow(data))
+            stop("'groups' argument has incorrect length.")
+        groups.name <- attr(groups,"name") 
+        
+        ugrps <- unique(groups)      
+        k <- match(groups,ugrps)
+        sum.w.k <- drop(rowsum(w,k))
+        mu.bar.k <- rowsum(w*mu,k)/sum.w.k
+        mu.theta.bar.k <- rowsum(w*mu.theta,k)/sum.w.k
+        var.mu.bar.k <- rowSums(mu.theta.bar.k*(mu.theta.bar.k%*%cov.theta))
+        se.mu.bar.k <- sqrt(var.mu.bar.k)
+        ci <- cifunc(mean=mu.bar.k,sd=se.mu.bar.k,level=level)
+        lower <- ci$lower
+        upper <- ci$upper
+        res <- data.frame(pred=mu.bar.k,
+                          var.pred=var.mu.bar.k,
+                          se.pred=se.mu.bar.k,
+                          lower=lower,
+                          upper=upper)
+        res[[groups.name]] <- ugrps
+        res <- cbind(res,settings.j)
     }
     
+    res$.j <- NULL
+    res
+}
+
+
+
+predmarg1.default_multieq <- function(obj,
+                                      j,
+                                      data,
+                                      settings,
+                                      groups,
+                                      setup,
+                                      cifunc,
+                                      level,
+                                      parent){
+    n <- nrow(data)
+    settings.j <- settings[j,,drop=FALSE]
+    nd1 <- setdiff(names(data),names(settings))
+    newdata <- data.frame(data[,nd1],settings.j,
+                          row.names=1:n)
+    if(length(setup)){
+        e <- evalq(environment(),newdata,parent)
+        eval(setup,e)
+        l <- as.data.frame(as.list(e))
+        names.l <- names(l)
+        newdata[names.l] <- l
+    }
+    w <- newdata$.w
+    
+    mu <- predict_response(obj,newdata)
+    num.eqs <- ncol(mu)
+    cov.theta <- vcov(obj)
+
+    res <- list()
+    
+    if(!length(groups)){
+
+        sum.w <- sum(w)
+        mu.bar <- colSums(w*mu)/sum.w
+        
+        for(h in 1:num.eqs){
+
+            mu.bar.h <- mu.bar[h]
+            mu.theta <- mu_theta(obj,mu,newdata,h)
+            mu.bar.theta <- colSums(w*mu.theta)/sum.w
+            var.mu.bar <- mu.bar.theta %*% cov.theta %*% mu.bar.theta
+            se.mu.bar <- sqrt(var.mu.bar)
+            ci <- cifunc(mean=mu.bar.h,sd=se.mu.bar,level=level)
+            lower <- ci$lower
+            upper <- ci$upper
+
+            res.h <- data.frame(pred=mu.bar.h,
+                                var.pred=var.mu.bar,
+                                se.pred=se.mu.bar,
+                                lower=lower,
+                                upper=upper,
+                                eqnum=h)
+            res.h <- cbind(res.h,settings.j)
+            res.h$.j <- NULL
+            res[[h]] <- res.h
+        }
+    }
+    else {
+        
+        if(length(groups)!=nrow(data))
+            stop("'groups' argument has incorrect length.")
+        groups.name <- attr(groups,"name") 
+        
+        ugrps <- unique(groups)      
+        k <- match(groups,ugrps)
+
+        sum.w.k <- drop(rowsum(w,k))
+        mu.bar.k <- rowsum(w*mu,k)/sum.w.k
+        for(h in 1:num.eqs){
+
+            mu.bar.hk <- mu.bar.k[,h]
+            mu.theta <- mu_theta(obj,mu,newdata,h)
+            mu.theta.bar.k <- rowsum(w*mu.theta,k)/sum.w.k
+            var.mu.bar.k <- rowSums(mu.theta.bar.k*(mu.theta.bar.k%*%cov.theta))
+            se.mu.bar.k <- sqrt(var.mu.bar.k)
+            ci <- cifunc(mean=mu.bar.hk,sd=se.mu.bar.k,level=level)
+            lower <- ci$lower
+            upper <- ci$upper
+            res.h <- data.frame(pred=mu.bar.hk,
+                                var.pred=var.mu.bar.k,
+                                se.pred=se.mu.bar.k,
+                                lower=lower,
+                                upper=upper,
+                                eqnum=h)
+            res.h[[groups.name]] <- ugrps
+            res.h <- cbind(res.h,settings.j)
+            
+            res.h$.j <- NULL
+            res[[h]] <- res.h
+        }       
+    }
+
+    res <- do.call(rbind,res)
+    if(length(colnames(mu)))
+        res$response <- factor(res$eqnum,labels=colnames(mu))
+
+    res
+}
+
+predmarg1.mblogit <- function(obj,...) predmarg1.default_multieq(obj,...)
+
+#' @export
+cinorm <- function(mean,sd,level){
+    alpha <- (1-level)/2
+    p.lower <- alpha
+    p.upper <- 1-alpha
+
+    list(lower=qnorm(p=p.lower,mean=mean,sd=sd),
+         upper=qnorm(p=p.upper,mean=mean,sd=sd))
 }
 
 #' @export
@@ -246,6 +382,9 @@ predict_response.glm <- function(obj,data) predict(obj,newdata=data,type="respon
 predict_response.mblogit <- function(obj,data)
     predict(obj,newdata=data,type="response")
 
+predict_response.mclogit <- function(obj,data)
+    predict(obj,newdata=data,type="response")
+
 
 mu_theta <- function(obj,mu,data,k) UseMethod("mu_theta")
 
@@ -277,4 +416,31 @@ mu_theta.mblogit <- function(obj,mu,data,k){
     h <- match(ync,unique(ync))
         
     w[,h]*X[,xnc]
+}
+
+mu_theta.mclogit <- function(obj,mu,data,k){
+    
+    rhs <- obj$formula[-2]
+    fo <- obj$formula
+    lhs <- fo[[2]]
+    if(deparse(lhs[[1]])=="cbind"){
+        lhs <- lhs[[3]]
+    }
+    fo[[2]] <- lhs
+    m <- model.frame(fo,data=data)
+    set <- m[[1]]
+    
+    X <- model.matrix(rhs,m,
+                      contasts.arg=obj$contrasts,
+                      xlev=obj$xlevels
+                      )
+    cf <- coef(obj)
+    ncf <- names(cf)
+    X <- X[,ncf,drop=FALSE]
+    
+    set <- match(set,unique(set))
+
+    wX <- mu*(X - rowsum(mu*X,set)[set,,drop=FALSE])
+
+    wX
 }

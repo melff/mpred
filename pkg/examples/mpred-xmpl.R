@@ -34,11 +34,6 @@ plot(pred~income,data=pm.Chile.1.income,
 library(mclogit)
 library(MASS)
 
-mb.hs <- mblogit(Sat~Infl+Type+Cont,weights=Freq,
-                 data=housing)
-
-pm.mb.hs <- predmarg(mb.hs,Infl=levels(Infl))
-
 mb.Chile <- mblogit(vote~statusquo,
                     data=Chile)
 pm.mb.Chile <- predmarg(mb.Chile,
@@ -62,45 +57,22 @@ library(ggplot2)
        ) + geom_line() +geom_ribbon(alpha=.25) + facet_grid(~response))
 
 
-women2 <- within(women,{
-    censor <- ifelse(1:nrow(women)>7,1,0)
-})
+mb.hs <- mblogit(Sat~Infl+Type+Cont,weights=Freq,
+                 data=housing)
 
-fm <- lm(weight ~ poly(height, 2), data = women2)
-
-pm1 <-predmarg(fm,
-               height=seq(from=58,to=72,
-                         length=10),
-               quick.setup={
-                   # The data expanded by the settings is longer than
-                   # the original data frame 'women2', i.e. ten times as long
-                   # due to the lenght of the 'height' argument.
-                   # We therefore need to adapt the length of the variable
-                   # 'censor' if we want to use it to censor the variable
-                   # 'heigth' in the settings.
-                   censor <- rep(women2$censor,length=length(height))
-                   height <- ifelse(censor>0,height,0)
-               })
-
-pm2 <-predmarg(fm,
-               height=seq(from=58,to=72,
-                         length=10),
-               setup={
-                   # The expression is evaluated for each individual 
-                   # setting of 'height' and a copy of the data to which
-                   # the model was fit.
-                   height <- ifelse(women2$censor>0,height,0)
-               })
-
-
-pm1 - pm2
-
-pm3 <-predmarg(fm,
-               height=seq(from=58,to=72,
-                          length=10),
-               multi=c(1,2),
-               setup={
-                   height <- height*multi
-               })
-
-str(pm3)
+pm.mb.hs <- predmarg(mb.hs,
+                     Infl=levels(Infl),
+                     Type=levels(Type))
+(ggplot(pm.mb.hs,
+        aes(x=Infl,
+            y=pred,
+            ymin=lower,
+            ymax=upper,
+            fill=response,
+            group=response
+            )
+        )
+    +facet_wrap(~Type)
+    +geom_bar(stat='identity', position=dodge)
+    +geom_errorbar(position=dodge,width=.2)
+) 
