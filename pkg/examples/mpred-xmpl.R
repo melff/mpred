@@ -63,6 +63,8 @@ mb.hs <- mblogit(Sat~Infl+Type+Cont,weights=Freq,
 pm.mb.hs <- predmarg(mb.hs,
                      Infl=levels(Infl),
                      Type=levels(Type))
+
+dodge <- position_dodge(width=.8)
 (ggplot(pm.mb.hs,
         aes(x=Infl,
             y=pred,
@@ -73,6 +75,6 @@ pm.mb.hs <- predmarg(mb.hs,
             )
         )
     +facet_wrap(~Type)
-    +geom_bar(stat='identity', position=dodge)
-    +geom_errorbar(position=dodge,width=.2)
+    +geom_bar(stat='identity', position=dodge,width=.7)
+    +geom_errorbar(position=dodge,width=.4)
 ) 
