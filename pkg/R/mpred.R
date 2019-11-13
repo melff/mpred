@@ -6,6 +6,9 @@
 #' @param obj a model object, e.g. returned by \code{lm}, \code{glm}, etc.
 #' @param settings an optional data frame of settings for independent
 #'     variables. 
+#' @param data an optional data frame for which the predictive margins are
+#'     computed. If ommited, an attempt is made to obtain the data from the
+#'     model object.
 #' @param subset an optional logical vector that defines a subset for which a
 #'     predictive margin is computed
 #' @param groups a variable that defines groups for which predictive margines
@@ -56,8 +59,23 @@ predmarg <- function(obj,
                      mc.cores=max.cores,
                      ...) {
 
-    if(missing(data))
-        data <- get_data(obj)
+    if(missing(data)){
+        
+        data <- model.frame(obj)
+        w <- weights(obj)
+        if(!length(w))
+            w <- rep(1,nrow(data))
+        nact <- na.action(obj)
+        
+        if(length(nact)){
+            data <- data[-nact,,drop=FALSE]
+            w <- w[-nact]
+        }
+    }
+    else {
+        data <- model.frame(obj)
+        w <- weights(obj)
+    }
 
     if(!missing(groups)){
         groups <- substitute(groups)
@@ -67,13 +85,6 @@ predmarg <- function(obj,
     }
     else
         groups <- NULL
-    
-    nact <- na.action(obj)
-    if(length(nact))
-        data <- data[-nact,,drop=FALSE]
-    w <- weights(obj)
-    if(!length(w))
-        w <- rep(1,nrow(data))
 
     if(!missing(subset)){
         subset <- eval(substitute(subset),data,parent.frame())
@@ -83,7 +94,6 @@ predmarg <- function(obj,
         w <- w[subset]
     }
 
-    
     settings <- get_settings(data,
                              settings,
                              parent=parent.frame(),
@@ -146,6 +156,7 @@ predmarg <- function(obj,
 
 predmarg1 <- function(obj,...) UseMethod("predmarg1")
 
+#' @export
 predmarg1.default <- function(obj,
                               j,
                               data,
@@ -172,7 +183,7 @@ predmarg1.default <- function(obj,
     mu <- predict_response(obj,newdata)
     mu.theta <- mu_theta(obj,mu,newdata)
     cov.theta <- vcov(obj)
-    
+
     if(!length(groups)){
         
         sum.w <- sum(w)
@@ -320,6 +331,7 @@ predmarg1.default_multieq <- function(obj,
     res
 }
 
+#' @export
 predmarg1.mblogit <- function(obj,...) predmarg1.default_multieq(obj,...)
 
 #' @export
@@ -330,29 +342,6 @@ cinorm <- function(mean,sd,level){
 
     list(lower=qnorm(p=p.lower,mean=mean,sd=sd),
          upper=qnorm(p=p.upper,mean=mean,sd=sd))
-}
-
-#' @export
-get_data <- function(obj) UseMethod("get_data")
-
-#' @export
-get_data.lm <- function(obj){
-
-    terms <- obj$terms
-    env <- environment(terms)
-
-    call <- obj$call
-    data <- eval(call$data,parent.frame())
-    wc <- call$weights
-    res <- get_all_vars(obj,data=data)
-    if(length(wc)){
-        wn <- all.vars(wc)
-        wdf <- data.frame(w=eval(wc,data,
-                                 parent.frame()))
-        names(wdf) <- wn
-        res <- cbind(res,wdf)
-    }
-    res
 }
 
 #' @export
@@ -377,33 +366,46 @@ get_settings <- function(data,
 }
 
 predict_response <- function(obj,data) UseMethod("predict_response")
+#' @export
 predict_response.lm <- function(obj,data) predict(obj,newdata=data,type="response")
+#' @export
 predict_response.glm <- function(obj,data) predict(obj,newdata=data,type="response")
 
+#' @export
 predict_response.mblogit <- function(obj,data)
     predict(obj,newdata=data,type="response")
 
+#' @export
 predict_response.mclogit <- function(obj,data)
     predict(obj,newdata=data,type="response")
 
 
 mu_theta <- function(obj,mu,data,k) UseMethod("mu_theta")
 
+#' @export
 mu_theta.lm <- function(obj,mu,data,k){
-    X <- model.matrix(obj,data=data)
+    X <- model.matrix.default(obj,data=data)
     X
 }
 
+#' @export
 mu_theta.glm <- function(obj,mu,data,k){
-    X <- model.matrix(obj,data=data)
+    X <- model.matrix.default(obj,data=data)
+    na.act <- obj$na.action
+    if(length(na.act))
+        X <- X[-na.act,,drop=FALSE]
     coef <- coef(obj)
     eta <- X%*%coef
     mu_eta <- obj$family$mu.eta(eta)
     X*as.vector(mu_eta)
 }
 
+#' @export
 mu_theta.mblogit <- function(obj,mu,data,k){
-    X <- model.matrix(obj,data=data)
+    X <- model.matrix.default(obj,data=data)
+    na.act <- obj$na.action
+    if(length(na.act))
+        X <- X[-na.act,,drop=FALSE]
     coef <- coef(obj)
     nc <- names(coef)
     nc <- strsplit(nc,"~")
@@ -419,6 +421,7 @@ mu_theta.mblogit <- function(obj,mu,data,k){
     w[,h]*X[,xnc]
 }
 
+#' @export
 mu_theta.mclogit <- function(obj,mu,data,k){
     
     rhs <- obj$formula[-2]
@@ -431,10 +434,13 @@ mu_theta.mclogit <- function(obj,mu,data,k){
     m <- model.frame(fo,data=data)
     set <- m[[1]]
     
-    X <- model.matrix(rhs,m,
-                      contasts.arg=obj$contrasts,
-                      xlev=obj$xlevels
-                      )
+    X <- model.matrix.default(rhs,m,
+                              contasts.arg=obj$contrasts,
+                              xlev=obj$xlevels
+                              )
+    na.act <- obj$na.action
+    if(length(na.act))
+        X <- X[-na.act,,drop=FALSE]
     cf <- coef(obj)
     ncf <- names(cf)
     X <- X[,ncf,drop=FALSE]

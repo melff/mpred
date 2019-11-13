@@ -14,7 +14,7 @@ with(women, points(height,weight))
 with(pm, lines(height,lower,lty=2))
 with(pm, lines(height,upper,lty=2))
 
-library(car)
+library(carData)
 Chile %<>% within({
     vote2 <- factor(vote,levels=c("N","Y"))
     vote2 <- as.integer(vote2=="Y")
