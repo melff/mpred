@@ -57,7 +57,8 @@ predmarg <- function(obj,
                      cifunc=cinorm,
                      level=0.95,
                      parallel=TRUE,
-                     mc.cores=max.cores,
+                     mc.cores=if(.Platform$OS.type == "windows") 1L
+                              else max.cores,
                      ...) {
 
     if(missing(data)){
@@ -335,7 +336,13 @@ predmarg1.default_multieq <- function(obj,
 #' @export
 predmarg1.mblogit <- function(obj,...) predmarg1.default_multieq(obj,...)
 
+#' Confidence/prediction interval based on a normal distribution 
+#' 
 #' @export
+#'
+#' @param mean a scalar; the mean parameter of the normal distribution
+#' @param sd a scalar; the standard deviation parameter of the normal distribution
+#' @param level a scalar; the confidence level
 cinorm <- function(mean,sd,level){
     alpha <- (1-level)/2
     p.lower <- alpha
@@ -345,7 +352,6 @@ cinorm <- function(mean,sd,level){
          upper=qnorm(p=p.upper,mean=mean,sd=sd))
 }
 
-#' @export
 get_settings <- function(data,
                          settings,
                          parent,

@@ -1,7 +1,7 @@
 Package: mpred
 Type: Package
 Title: Generic Predictive Margins
-Version: 0.2
+Version: 0.2.1
 Date: 2019-11-13
 Author: Martin Elff
 Maintainer: Martin Elff <martin@elff.eu>
