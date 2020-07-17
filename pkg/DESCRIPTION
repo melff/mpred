@@ -2,7 +2,7 @@ Package: mpred
 Type: Package
 Title: Generic Predictive Margins
 Version: 0.2.1
-Date: 2019-11-13
+Date: 2020-07-17
 Author: Martin Elff
 Maintainer: Martin Elff <martin@elff.eu>
 Description: Provides a function to compute predictive margins.
@@ -11,4 +11,4 @@ LazyLoad: Yes
 Depends: R (>= 3.3.3), stats
 Imports: parallel
 Suggests: mclogit, magrittr, carData, MASS, ggplot2
-RoxygenNote: 6.1.1
+RoxygenNote: 7.1.0
