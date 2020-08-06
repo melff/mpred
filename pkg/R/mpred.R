@@ -56,7 +56,7 @@ predmarg <- function(obj,
                      setup=NULL,
                      cifunc=cinorm,
                      level=0.95,
-                     parallel=TRUE,
+                     parallel=FALSE,
                      mc.cores=if(.Platform$OS.type == "windows") 1L
                               else max.cores,
                      ...) {
