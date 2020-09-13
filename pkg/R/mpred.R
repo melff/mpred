@@ -5,8 +5,7 @@
 #' @import stats
 #'
 #' @param obj a model object, e.g. returned by \code{lm}, \code{glm}, etc.
-#' @param settings an optional data frame of settings for independent
-#'     variables. 
+#' @param settings an optional data frame of settings for independent variables.
 #' @param data an optional data frame for which the predictive margins are
 #'     computed. If ommited, an attempt is made to obtain the data from the
 #'     model object.
@@ -16,17 +15,20 @@
 #'     are computed. This variable has to have the same number of observations
 #'     as the data to which the model was fitted.
 #' @param setup an optional expression that is evaluated for each setting,
-#'     i.e. individually for each row of the settings data frame. Can be
-#'     used to modify independent variables.
+#'     i.e. individually for each row of the settings data frame. Can be used to
+#'     modify independent variables.
+#' @param type an optional character string that specifies the type of
+#'     predictions, e.g. probabilities or cumulative probabilites. For future
+#'     versions only.
 #' @param cifunc a function to compute prediction intervals.
 #' @param level level of confidence intervals of predictions.
 #' @param parallel logical value that determines whether predictions for
 #'     individual settings are computed in parallel. (Does not yet work on
 #'     windows.)
 #' @param mc.cores number of CPU cores used for parallel processing.
-#' @param \dots optional vectors of values of independent variabls. These further
-#'     arguments, if present, are used to create a data frame of settings,
-#'     using \code{\link{expand.grid}}.
+#' @param \dots optional vectors of values of independent variabls. These
+#'     further arguments, if present, are used to create a data frame of
+#'     settings, using \code{\link{expand.grid}}.
 #' 
 #' @details The generic function \code{predmarg} computes predictive
 #'     margins for various settings of the independent variables. It is also
@@ -52,6 +54,7 @@ predmarg <- function(obj,
                      settings,
                      data,
                      subset,
+                     type = NULL,
                      groups=NULL,
                      setup=NULL,
                      cifunc=cinorm,
@@ -133,6 +136,7 @@ predmarg <- function(obj,
                            data=data,
                            settings=settings,
                            groups=groups,
+                           type=type,
                            setup=setup,
                            cifunc=cifunc,
                            level=level,
@@ -147,6 +151,7 @@ predmarg <- function(obj,
                          data=data,
                          settings=settings,
                          groups=groups,
+                         type=type,
                          setup=setup,
                          cifunc=cifunc,
                          level=level,
@@ -164,6 +169,7 @@ predmarg1.default <- function(obj,
                               data,
                               settings,
                               groups,
+                              type,
                               setup,
                               cifunc,
                               level,
@@ -182,20 +188,28 @@ predmarg1.default <- function(obj,
     }
     w <- newdata$.w
     
-    mu <- predict_response(obj,newdata)
-    mu.theta <- mu_theta(obj,mu,newdata)
+    mu <- predict_response(obj,newdata,type=type)
+    mu.theta <- attr(mu,"Jacobian")
     cov.theta <- vcov(obj)
 
     if(!length(groups)){
         
         sum.w <- sum(w)
         mu.bar <- sum(w*mu)/sum.w
-        mu.bar.theta <- colSums(w*mu.theta)/sum.w
-        var.mu.bar <- mu.bar.theta %*% cov.theta %*% mu.bar.theta
-        se.mu.bar <- sqrt(var.mu.bar)
-        ci <- cifunc(mean=mu.bar,sd=se.mu.bar,level=level)
-        lower <- ci$lower
-        upper <- ci$upper
+        if(length(mu.theta)){
+            mu.bar.theta <- colSums(w*mu.theta)/sum.w
+            var.mu.bar <- mu.bar.theta %*% cov.theta %*% mu.bar.theta
+            se.mu.bar <- sqrt(var.mu.bar)
+            ci <- cifunc(mean=mu.bar,sd=se.mu.bar,level=level)
+            lower <- ci$lower
+            upper <- ci$upper
+        }
+        else {
+            var.mu.bar <- NA
+            se.mu.bar <- NA
+            lower <- NA
+            upper <- NA
+        }
         
         res <- data.frame(pred=mu.bar,
                           var.pred=var.mu.bar,
@@ -214,12 +228,20 @@ predmarg1.default <- function(obj,
         k <- match(groups,ugrps)
         sum.w.k <- drop(rowsum(w,k))
         mu.bar.k <- rowsum(w*mu,k)/sum.w.k
-        mu.theta.bar.k <- rowsum(w*mu.theta,k)/sum.w.k
-        var.mu.bar.k <- rowSums(mu.theta.bar.k*(mu.theta.bar.k%*%cov.theta))
-        se.mu.bar.k <- sqrt(var.mu.bar.k)
-        ci <- cifunc(mean=mu.bar.k,sd=se.mu.bar.k,level=level)
-        lower <- ci$lower
-        upper <- ci$upper
+        if(length(mu.theta)){
+            mu.theta.bar.k <- rowsum(w*mu.theta,k)/sum.w.k
+            var.mu.bar.k <- rowSums(mu.theta.bar.k*(mu.theta.bar.k%*%cov.theta))
+            se.mu.bar.k <- sqrt(var.mu.bar.k)
+            ci <- cifunc(mean=mu.bar.k,sd=se.mu.bar.k,level=level)
+            lower <- ci$lower
+            upper <- ci$upper
+        }
+        else {
+            var.pred <- NA
+            se.pred <- NA
+            lower <- NA
+            upper <- NA
+        }
         res <- data.frame(pred=mu.bar.k,
                           var.pred=var.mu.bar.k,
                           se.pred=se.mu.bar.k,
@@ -240,6 +262,7 @@ predmarg1.default_multieq <- function(obj,
                                       data,
                                       settings,
                                       groups,
+                                      type,
                                       setup,
                                       cifunc,
                                       level,
@@ -258,7 +281,8 @@ predmarg1.default_multieq <- function(obj,
     }
     w <- newdata$.w
     
-    mu <- predict_response(obj,newdata)
+    mu <- predict_response(obj,newdata,type=type)
+    mu.theta <- attr(mu,"Jacobian")
     num.eqs <- ncol(mu)
     cov.theta <- vcov(obj)
 
@@ -272,17 +296,19 @@ predmarg1.default_multieq <- function(obj,
         for(h in 1:num.eqs){
 
             mu.bar.h <- mu.bar[h]
-            mu.theta <- mu_theta(obj,mu,newdata,h)
-            mu.bar.theta <- colSums(w*mu.theta)/sum.w
-            var.mu.bar <- mu.bar.theta %*% cov.theta %*% mu.bar.theta
-            se.mu.bar <- sqrt(var.mu.bar)
-            ci <- cifunc(mean=mu.bar.h,sd=se.mu.bar,level=level)
-            lower <- ci$lower
-            upper <- ci$upper
+            if(length(mu.theta)){
+                mu.theta.h <- mu.theta[[h]]
+                mu.bar.theta.h <- colSums(w*mu.theta.h)/sum.w
+                var.mu.bar.h <- mu.bar.theta.h %*% cov.theta %*% mu.bar.theta.h
+                se.mu.bar.h <- sqrt(var.mu.bar.h)
+                ci <- cifunc(mean=mu.bar.h,sd=se.mu.bar.h,level=level)
+                lower <- ci$lower
+                upper <- ci$upper
+            }
 
             res.h <- data.frame(pred=mu.bar.h,
-                                var.pred=var.mu.bar,
-                                se.pred=se.mu.bar,
+                                var.pred=var.mu.bar.h,
+                                se.pred=se.mu.bar.h,
                                 lower=lower,
                                 upper=upper,
                                 eqnum=h)
@@ -303,18 +329,25 @@ predmarg1.default_multieq <- function(obj,
         sum.w.k <- drop(rowsum(w,k))
         mu.bar.k <- rowsum(w*mu,k)/sum.w.k
         for(h in 1:num.eqs){
-
+            
             mu.bar.hk <- mu.bar.k[,h]
-            mu.theta <- mu_theta(obj,mu,newdata,h)
-            mu.theta.bar.k <- rowsum(w*mu.theta,k)/sum.w.k
-            var.mu.bar.k <- rowSums(mu.theta.bar.k*(mu.theta.bar.k%*%cov.theta))
-            se.mu.bar.k <- sqrt(var.mu.bar.k)
-            ci <- cifunc(mean=mu.bar.hk,sd=se.mu.bar.k,level=level)
-            lower <- ci$lower
-            upper <- ci$upper
+            if(length(mu.theta)){
+                mu.theta.bar.hk <- rowsum(w*mu.theta.h,k)/sum.w.k
+                var.mu.bar.hk <- rowSums(mu.theta.bar.hk*(mu.theta.bar.hk%*%cov.theta))
+                se.mu.bar.hk <- sqrt(var.mu.bar.hk)
+                ci <- cifunc(mean=mu.bar.hk,sd=se.mu.bar.hk,level=level)
+                lower <- ci$lower
+                upper <- ci$upper
+            }
+            else {
+                var.mu.bar.hk <- NA
+                se.mu.bar.hk <- NA
+                lower <- NA
+                upper <- NA
+            }
             res.h <- data.frame(pred=mu.bar.hk,
-                                var.pred=var.mu.bar.k,
-                                se.pred=se.mu.bar.k,
+                                var.pred=var.mu.bar.hk,
+                                se.pred=se.mu.bar.hk,
                                 lower=lower,
                                 upper=upper,
                                 eqnum=h)
@@ -372,65 +405,65 @@ get_settings <- function(data,
     settings
 }
 
-predict_response <- function(obj,data) UseMethod("predict_response")
-#' @export
-predict_response.lm <- function(obj,data) predict(obj,newdata=data,type="response")
-#' @export
-predict_response.glm <- function(obj,data) predict(obj,newdata=data,type="response")
+predict_response <- function(obj,data,...) UseMethod("predict_response")
 
-#' @export
-predict_response.mblogit <- function(obj,data)
-    predict(obj,newdata=data,type="response")
-
-#' @export
-predict_response.mclogit <- function(obj,data)
-    predict(obj,newdata=data,type="response")
-
-
-mu_theta <- function(obj,mu,data,k) UseMethod("mu_theta")
-
-#' @export
-mu_theta.lm <- function(obj,mu,data,k){
-    X <- model.matrix.default(obj,data=data)
-    X
+model_matrix <- function(obj,data){
+    na.act <- obj$na.action
+    trms <- terms(obj)
+    trms <- delete.response(trms)
+    mf <- model.frame(trms,data,xlev=obj$xlevels)
+    model.matrix(trms,data=mf,contrasts.arg=obj$contrasts)
 }
 
 #' @export
-mu_theta.glm <- function(obj,mu,data,k){
-    X <- model.matrix.default(obj,data=data)
-    na.act <- obj$na.action
-    if(length(na.act))
-        X <- X[-na.act,,drop=FALSE]
+predict_response.lm <- function(obj,data,...){
+    X <- model_matrix(obj,data)
+    coef <- coef(obj)
+    mu <- X%*%coef
+    structure(mu,Jacobian=X)
+}
+
+#' @export
+predict_response.glm <- function(obj,data,...){
+    #prd <- predict(obj,newdata=data,type="response")
+    X <- model_matrix(obj,data)
     coef <- coef(obj)
     eta <- X%*%coef
+    mu <- obj$family$linkinv(eta)
     mu_eta <- obj$family$mu.eta(eta)
-    X*as.vector(mu_eta)
+    Jacobian <- X*as.vector(mu_eta)
+    structure(mu,Jacobian=Jacobian)
 }
 
 #' @export
-mu_theta.mblogit <- function(obj,mu,data,k){
-    X <- model.matrix.default(obj,data=data)
-    na.act <- obj$na.action
-    if(length(na.act))
-        X <- X[-na.act,,drop=FALSE]
+predict_response.mblogit <- function(obj,data,...){
+    mu <- predict(obj,newdata=data,type="response")
+    X <- model_matrix(obj,data=data)
+    # na.act <- obj$na.action
+    # if(length(na.act))
+    #     X <- X[-na.act,,drop=FALSE]
     coef <- coef(obj)
     nc <- names(coef)
     nc <- strsplit(nc,"~")
     ync <- sapply(nc,"[",1)
     xnc <- sapply(nc,"[",2)
 
-    w <- -mu[,k]*mu
-    if(k>1)
-        w[,k]<-w[,k]+mu[,k]
-    w <- w[,-1,drop=FALSE]
-    h <- match(ync,unique(ync))
-        
-    w[,h]*X[,xnc]
+    n.eqs <- ncol(mu)
+    Jacobian <- list()
+    for(k in 1:n.eqs){
+        w <- -mu[,k]*mu
+        if(k>1)
+            w[,k]<-w[,k]+mu[,k]
+        w <- w[,-1,drop=FALSE]
+        h <- match(ync,unique(ync))
+        Jacobian[[k]] <- w[,h]*X[,xnc]
+    }
+    structure(mu,Jacobian=Jacobian)
 }
 
 #' @export
-mu_theta.mclogit <- function(obj,mu,data,k){
-    
+predict_response.mclogit <- function(obj,data){
+    mu <- predict(obj,newdata=data,type="response")
     rhs <- obj$formula[-2]
     fo <- obj$formula
     lhs <- fo[[2]]
@@ -441,20 +474,17 @@ mu_theta.mclogit <- function(obj,mu,data,k){
     m <- model.frame(fo,data=data)
     set <- m[[1]]
     
-    X <- model.matrix.default(rhs,m,
-                              contasts.arg=obj$contrasts,
-                              xlev=obj$xlevels
-                              )
+    X <- model_matrix(obj,data=data)
     na.act <- obj$na.action
-    if(length(na.act))
-        X <- X[-na.act,,drop=FALSE]
+    # if(length(na.act))
+    #     X <- X[-na.act,,drop=FALSE]
     cf <- coef(obj)
     ncf <- names(cf)
     X <- X[,ncf,drop=FALSE]
     
     set <- match(set,unique(set))
 
-    wX <- mu*(X - rowsum(mu*X,set)[set,,drop=FALSE])
-
-    wX
+    Jacobian <- mu*(X - rowsum(mu*X,set)[set,,drop=FALSE])
+    structure(mu,Jacobian=Jacobian)
 }
+

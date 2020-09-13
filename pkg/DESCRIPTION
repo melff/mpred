@@ -1,8 +1,8 @@
 Package: mpred
 Type: Package
 Title: Generic Predictive Margins
-Version: 0.2.2
-Date: 2020-08-06
+Version: 0.2.3
+Date: 2020-09-13
 Author: Martin Elff
 Maintainer: Martin Elff <martin@elff.eu>
 Description: Provides a function to compute predictive margins.
