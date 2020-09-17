@@ -20,7 +20,9 @@
 #' @param type an optional character string that specifies the type of
 #'     predictions, e.g. probabilities or cumulative probabilites. For future
 #'     versions only.
-#' @param cifunc a function to compute prediction intervals.
+#' @param cifunc a function to compute prediction intervals. This is
+#'     \code{cinorm} by default, but should be \code{cibeta} of predictions are
+#'     probabilities.
 #' @param level level of confidence intervals of predictions.
 #' @param parallel logical value that determines whether predictions for
 #'     individual settings are computed in parallel. (Does not yet work on
@@ -332,6 +334,7 @@ predmarg1.default_multieq <- function(obj,
             
             mu.bar.hk <- mu.bar.k[,h]
             if(length(mu.theta)){
+                mu.theta.h <- mu.theta[[h]]
                 mu.theta.bar.hk <- rowsum(w*mu.theta.h,k)/sum.w.k
                 var.mu.bar.hk <- rowSums(mu.theta.bar.hk*(mu.theta.bar.hk%*%cov.theta))
                 se.mu.bar.hk <- sqrt(var.mu.bar.hk)
@@ -370,12 +373,15 @@ predmarg1.default_multieq <- function(obj,
 predmarg1.mblogit <- function(obj,...) predmarg1.default_multieq(obj,...)
 
 #' Confidence/prediction interval based on a normal distribution 
+#'
+#' Creates prediction intervals from a normal distribution with given mean and
+#' standard deviation.
 #' 
-#' @export
 #'
 #' @param mean a scalar; the mean parameter of the normal distribution
 #' @param sd a scalar; the standard deviation parameter of the normal distribution
 #' @param level a scalar; the confidence level
+#' @export
 cinorm <- function(mean,sd,level){
     alpha <- (1-level)/2
     p.lower <- alpha
@@ -383,6 +389,28 @@ cinorm <- function(mean,sd,level){
 
     list(lower=qnorm(p=p.lower,mean=mean,sd=sd),
          upper=qnorm(p=p.upper,mean=mean,sd=sd))
+}
+
+#' Confidence/prediction interval based on a beta distribution 
+#' 
+#' Creates prediction intervals from a beta distribution with given mean and
+#' standard deviation.
+#'
+#' @param mean a scalar; the mean of the beta distribution
+#' @param sd a scalar; the standard deviation of the beta distribution
+#' @param level a scalar; the confidence level
+#' @export
+cibeta <- function(mean,sd,level){
+    alpha <- (1-level)/2
+    p.lower <- alpha
+    p.upper <- 1-alpha
+
+    nu <- mean*(1-mean)/sd^2-1
+    shape1 <- mean*nu
+    shape2 <- (1-mean)*nu
+    
+    list(lower=qbeta(p=p.lower, shape1=shape1, shape2=shape2),
+         upper=qbeta(p=p.upper, shape1=shape1, shape2=shape2))
 }
 
 get_settings <- function(data,

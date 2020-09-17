@@ -1,4 +1,4 @@
-ranef <- function(object, ...) UseMethod("ranef")
+#' @importFrom ordinal ranef condVar
 
 # From ordinal package:
 findbars <- function (term) 
@@ -117,6 +117,7 @@ predict_response.clmm <- function(obj, data, ...){
     d.mu.d.gamma <- D[-1,,drop=FALSE]
     d.kappa.d.alpha <- obj$tJac
     Jacobian <- list()
+    ranefJacobian <- list()
     q <- ncol(vcov(obj))
     filler <- matrix(0,nrow=nrow(X),
                      ncol=q-ncol(X)-ncol(d.kappa.d.alpha))
@@ -126,38 +127,142 @@ predict_response.clmm <- function(obj, data, ...){
         d.mu_k.d.beta <- d.mu_k.d.eta*X
         d.mu_k.d.alpha <- ggamma %*% diag(x=d.mu_k.d.gamma) %*% d.kappa.d.alpha
         Jacobian[[k]] <- cbind(d.mu_k.d.alpha,d.mu_k.d.beta,filler)
+        ranefJacobian.k <- list()
+        for(re_n in re_names){
+            Z.kl <- Z[[re_n]]
+            ranefJacobian.k[[re_n]] <- d.mu_k.d.eta*Z.kl
+        }
+        ranefJacobian[[k]] <- ranefJacobian.k
     }
-    structure(mu,Jacobian=Jacobian)
+    structure(mu,Jacobian=Jacobian,ranefJacobian=ranefJacobian)
 }
-
-mu_theta.clmm <- function(obj,mu,data,k){
-    m <- ncol(mu)
-    D <- diff(diag(m+1))[,-1]
-    iD <- solve(D)
-
-    gamma <- mu%*%iD[,-1]
-    ggamma <- gamma*(1-gamma)
-
-    d.mu.d.gamma <- t(diff(diag(m)))
-
-    XZ <- model_matrix_clmm(obj, data)
-    X <- XZ$X
-    intcp <- which(colnames(X)=="(Intercept)")
-
-    d.eta.d.beta <- X[,-intcp,drop=FALSE]
-    d.mu_k.d.gamma <- d.mu.d.gamma[k,]
-    d.mu_k.d.eta <- c(ggamma %*% d.mu_k.d.gamma)
-    d.mu_k.d.beta <- d.mu_k.d.eta*d.eta.d.beta
-
-    d.kappa.d.alpha <- obj$tJac
-    d.mu_k.d.alpha <- ggamma %*% diag(x=d.mu_k.d.gamma) %*% d.kappa.d.alpha
-
-    mu_theta <- cbind(d.mu_k.d.alpha,d.mu_k.d.beta)
-    q <- ncol(vcov(obj))
-    filler <- matrix(0,nrow=nrow(mu_theta),ncol=q-ncol(mu_theta))
-    cbind(mu_theta,filler)
-}
-
 
 #' @export
-predmarg1.clmm <- function(obj,...) predmarg1.default_multieq(obj,...)
+predmarg1.clmm <- function(obj,
+                           j,
+                           data,
+                           settings,
+                           groups,
+                           type,
+                           setup,
+                           cifunc,
+                           level,
+                           parent){
+    n <- nrow(data)
+    settings.j <- settings[j,,drop=FALSE]
+    nd1 <- setdiff(names(data),names(settings))
+    newdata <- data.frame(data[,nd1],settings.j,
+                          row.names=1:n)
+    if(length(setup)){
+        e <- evalq(environment(),newdata,parent)
+        eval(setup,e)
+        l <- as.data.frame(as.list(e))
+        names.l <- names(l)
+        newdata[names.l] <- l
+    }
+    w <- newdata$.w
+    
+    mu <- predict_response(obj,newdata,type=type)
+    mu.theta <- attr(mu,"Jacobian")
+    mu.ranef <- attr(mu,"ranefJacobian")
+    num.eqs <- ncol(mu)
+    cov.theta <- vcov(obj)
+    var.ranef <- condVar(obj)
+
+    res <- list()
+    
+    if(!length(groups)){
+
+        sum.w <- sum(w)
+        mu.bar <- colSums(w*mu)/sum.w
+        
+        for(h in 1:num.eqs){
+
+            mu.bar.h <- mu.bar[h]
+            mu.ranef.h <- mu.ranef[[h]]
+            if(length(mu.theta)){
+                mu.theta.h <- mu.theta[[h]]
+                mu.bar.theta.h <- colSums(w*mu.theta.h)/sum.w
+                var.mu.bar.h <- mu.bar.theta.h %*% cov.theta %*% mu.bar.theta.h
+                for(n in names(mu.ranef.h)){
+                    mu.ranef.hn <- mu.ranef.h[[n]]
+                    var.ranef.n <- var.ranef[[n]]
+                    j <- attr(mu.ranef.hn,"groups")
+                    var.mu.bar.ranef.n <- sum(w*mu.ranef.hn*(mu.ranef.hn*var.ranef.n[j,]))/sum.w
+                    var.mu.bar.h <- var.mu.bar.h + var.mu.bar.ranef.n
+                }
+                se.mu.bar.h <- sqrt(var.mu.bar.h)
+                ci <- cifunc(mean=mu.bar.h,sd=se.mu.bar.h,level=level)
+                lower <- ci$lower
+                upper <- ci$upper
+            }
+
+            res.h <- data.frame(pred=mu.bar.h,
+                                var.pred=var.mu.bar.h,
+                                se.pred=se.mu.bar.h,
+                                lower=lower,
+                                upper=upper,
+                                eqnum=h)
+            res.h <- cbind(res.h,settings.j)
+            res.h$.j <- NULL
+            res[[h]] <- res.h
+        }
+    }
+    else {
+        
+        if(length(groups)!=nrow(data))
+            stop("'groups' argument has incorrect length.")
+        groups.name <- attr(groups,"name") 
+        
+        ugrps <- unique(groups)      
+        k <- match(groups,ugrps)
+
+        sum.w.k <- drop(rowsum(w,k))
+        mu.bar.k <- rowsum(w*mu,k)/sum.w.k
+        for(h in 1:num.eqs){
+            
+            mu.bar.hk <- mu.bar.k[,h]
+            mu.ranef.h <- mu.ranef[[h]]
+            if(length(mu.theta)){
+                mu.theta.h <- mu.theta[[h]]
+                mu.theta.bar.hk <- rowsum(w*mu.theta.h,k)/sum.w.k
+                var.mu.bar.hk <- rowSums(mu.theta.bar.hk*(mu.theta.bar.hk%*%cov.theta))
+                for(n in names(mu.ranef.h)){
+                    mu.ranef.hn <- mu.ranef.h[[n]]
+                    var.ranef.n <- var.ranef[[n]]
+                    j <- attr(mu.ranef.hn,"groups")
+                    var.mu.bar.ranef.hkn <- rowsum(w*mu.ranef.hn*(mu.ranef.hn*var.ranef.n[j,]),k)/sum.w.k
+                    var.mu.bar.ranef.hkn <- rowSums(var.mu.bar.ranef.hkn)
+                    var.mu.bar.hk <- var.mu.bar.hk + var.mu.bar.ranef.hkn
+                }
+                se.mu.bar.hk <- sqrt(var.mu.bar.hk)
+                ci <- cifunc(mean=mu.bar.hk,sd=se.mu.bar.hk,level=level)
+                lower <- ci$lower
+                upper <- ci$upper
+            }
+            else {
+                var.mu.bar.hk <- NA
+                se.mu.bar.hk <- NA
+                lower <- NA
+                upper <- NA
+            }
+            res.h <- data.frame(pred=mu.bar.hk,
+                                var.pred=var.mu.bar.hk,
+                                se.pred=se.mu.bar.hk,
+                                lower=lower,
+                                upper=upper,
+                                eqnum=h)
+            res.h[[groups.name]] <- ugrps
+            res.h <- cbind(res.h,settings.j)
+            
+            res.h$.j <- NULL
+            res[[h]] <- res.h
+        }       
+    }
+
+    res <- do.call(rbind,res)
+    if(length(colnames(mu)))
+        res$response <- factor(res$eqnum,labels=colnames(mu))
+
+    res
+}
