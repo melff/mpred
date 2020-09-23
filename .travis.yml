@@ -7,8 +7,7 @@ cache: packages
 
 warnings_are_errors: true
 
-before_install: 
- - cd pkg
+before_install: cd pkg
 
 notifications:
   email:
