@@ -8,7 +8,7 @@ cache: packages
 warnings_are_errors: true
 
 before_install: 
- - Rscript --vanilla -e 'install.packages("roxygen2")'
+ - Rscript --vanilla -e 'install.packages("roxygen2", repos="https://cloud.r-project.org")'
  - Rscript --vanilla -e 'roxygen2::roxygenize(package.dir="pkg")'
  - cd pkg
 
