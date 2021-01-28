@@ -274,7 +274,7 @@ predmarg1.default_multieq <- function(obj,
     settings.j <- settings[j,,drop=FALSE]
     nd1 <- setdiff(names(data),names(settings))
     newdata <- data.frame(data[,nd1],settings.j,
-                          row.names=1:n)
+                          row.names=1:n,check.names=FALSE)
     if(length(setup)){
         e <- evalq(environment(),newdata,parent)
         eval(setup,e)
