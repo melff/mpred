@@ -7,6 +7,9 @@ ARCHIVE := $(PACKAGE)_$(VERSION).tar.gz
 
 RCHKIMG := kalibera-rchk-master-def.simg
 
+.PHONY: all
+all: build install
+
 .PHONY: describe
 describe:
 	cat ${SRCDIR}/DESCRIPTION
