@@ -476,3 +476,60 @@ predict_response.mclogit <- function(obj,data){
     structure(mu,Jacobian=Jacobian)
 }
 
+#' @export
+predict_response.mmblogit <- function(obj,data,...){
+    mu <- predict(obj,newdata=data,type="response",conditional=FALSE)
+    X <- model_matrix(obj,data=data)
+    # na.act <- obj$na.action
+    # if(length(na.act))
+    #     X <- X[-na.act,,drop=FALSE]
+    coef <- coef(obj)
+    nc <- names(coef)
+    nc <- strsplit(nc,"~")
+    ync <- sapply(nc,"[",1)
+    xnc <- sapply(nc,"[",2)
+
+    n.eqs <- ncol(mu)
+    Jacobian <- list()
+    for(k in 1:n.eqs){
+        w <- -mu[,k]*mu
+        if(k>1)
+            w[,k]<-w[,k]+mu[,k]
+        w <- w[,-1,drop=FALSE]
+        h <- match(ync,unique(ync))
+        Jacobian[[k]] <- w[,h]*X[,xnc]
+    }
+    structure(mu,Jacobian=Jacobian)
+}
+
+#' @export
+predict_response.mmclogit <- function(obj,data){
+    mu <- predict(obj,newdata=data,type="response",conditional=FALSE)
+    rhs <- obj$formula[-2]
+    fo <- obj$formula
+    lhs <- fo[[2]]
+    if(deparse(lhs[[1]])=="cbind"){
+        lhs <- lhs[[3]]
+    }
+    fo[[2]] <- lhs
+    m <- model.frame(fo,data=data)
+    set <- m[[1]]
+    
+    X <- model_matrix(obj,data=data)
+    na.act <- obj$na.action
+    # if(length(na.act))
+    #     X <- X[-na.act,,drop=FALSE]
+    cf <- coef(obj)
+    ncf <- names(cf)
+    X <- X[,ncf,drop=FALSE]
+    
+    set <- match(set,unique(set))
+
+    Jacobian <- mu*(X - rowsum(mu*X,set)[set,,drop=FALSE])
+    structure(mu,Jacobian=Jacobian)
+}
+
+getData <- function(obj) UseMethod("getData")
+
+getData.default <- function(obj) obj$model
+
