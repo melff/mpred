@@ -61,6 +61,8 @@ predmarg <- function(obj,
                      cifunc=get_cifunc(obj),
                      level=0.95,
                      parallel=FALSE,
+                     n=21,
+                     trim=0,
                      mc.cores=if(.Platform$OS.type == "windows") 1L
                               else max.cores,
                      ...) {
@@ -69,20 +71,14 @@ predmarg <- function(obj,
     
     if(missing(data)){
         
-        data <- model.frame(obj)
+        #data <- get_all_vars(obj,obj$data)
+        data <- getData(obj)
         w <- weights(obj)
         if(!length(w))
             w <- rep(1,nrow(data))
-        nact <- na.action(obj)
-        
-        if(length(nact)){
-            data <- data[-nact,,drop=FALSE]
-            w <- w[-nact]
-        }
     }
     else {
-        data <- model.frame(obj)
-        w <- weights(obj)
+        w <- rep(1,nrow(data))
     }
 
     if(!missing(groups)){
@@ -105,6 +101,8 @@ predmarg <- function(obj,
     settings <- get_settings(data,
                              settings,
                              parent=parent.frame(),
+                             n=n,
+                             trim=trim,
                              ...)
 
     n <- nrow(data)
@@ -180,8 +178,9 @@ predmarg1.default <- function(obj,
     n <- nrow(data)
     settings.j <- settings[j,,drop=FALSE]
     nd1 <- setdiff(names(data),names(settings))
-    newdata <- data.frame(data[,nd1],settings.j,
-                          row.names=1:n)
+    ii <- rep(1,n)
+    newdata <- data.frame(data[,nd1],settings.j[ii,],
+                          row.names=1:n,check.names=FALSE)
     if(length(setup)){
         e <- evalq(environment(),newdata,parent)
         eval(setup,e)
@@ -273,7 +272,9 @@ predmarg1.default_multieq <- function(obj,
     n <- nrow(data)
     settings.j <- settings[j,,drop=FALSE]
     nd1 <- setdiff(names(data),names(settings))
-    newdata <- data.frame(data[,nd1],settings.j,
+    attr(settings.j,"out.attrs") <- NULL
+    ii <- rep(1,n)
+    newdata <- data.frame(data[,nd1],settings.j[ii,],
                           row.names=1:n,check.names=FALSE)
     if(length(setup)){
         e <- evalq(environment(),newdata,parent)
@@ -376,12 +377,15 @@ predmarg1.mblogit <- function(obj,...) predmarg1.default_multieq(obj,...)
 get_settings <- function(data,
                          settings,
                          parent,
+                         n,
+                         trim,
                          ...){
 
     if(missing(settings))
         settings <- eval(substitute(list(...)),data,parent)
-    else
-        settings <- eval(substitute(settings),data,parent)
+    else if(inherits(settings,"formula")){
+        settings <- get_settings_from_formula(formula=settings,data,n,trim)
+    }
     
     if(!is.data.frame(settings)){
         if(!is.list(settings)) stop("'settings' should be a data frame or a list")
@@ -392,6 +396,28 @@ get_settings <- function(data,
 
     settings
 }
+
+get_settings_from_formula <- function(formula,data,n,trim){
+    data <- get_all_vars(formula,data)
+    settings <- lapply(data,get_one_setting_vector,n,trim)
+}
+
+get_one_setting_vector <- function(x,n,trim){
+    if(is.factor(x))
+        levels(x)
+    else {
+        if(trim == 0){
+            from_x <- min(x)
+            to_x <- max(x)
+        }
+        else {
+            from_x <- quantile(x,prob=trim/2)
+            to_x <- quantile(x,prob=1-trim/2)
+        }
+        seq(from=from_x,to=to_x,length=n)
+    }
+}
+
 
 predict_response <- function(obj,data,...) UseMethod("predict_response")
 
