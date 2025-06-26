@@ -15,6 +15,8 @@ predmarg(
   cifunc = get_cifunc(obj),
   level = 0.95,
   parallel = FALSE,
+  n = 21,
+  trim = 0,
   mc.cores = if (.Platform$OS.type == "windows") 1L else max.cores,
   ...
 )
@@ -22,7 +24,8 @@ predmarg(
 \arguments{
 \item{obj}{a model object, e.g. returned by \code{lm}, \code{glm}, etc.}
 
-\item{settings}{an optional data frame of settings for independent variables.}
+\item{settings}{an optional data frame of settings for independent variables
+or a formula with variables for which settings are to be generated.}
 
 \item{data}{an optional data frame for which the predictive margins are
 computed. If ommited, an attempt is made to obtain the data from the
@@ -51,6 +54,16 @@ the chosen by the function of the same name.}
 \item{parallel}{logical value that determines whether predictions for
 individual settings are computed in parallel. (Does not yet work on
 windows.)}
+
+\item{n}{an integer number, the number of values generated for 
+an independent variable if \code{settings} is a formula.
+The values form an equally spaced grid that cover the range from
+the variable in \code{data}.}
+
+\item{trim}{a number between 0 and 1. The proportion of 
+extreme values of variable in \code{data} that should be
+trimed from the range of a generated set of values of 
+an independent variable.}
 
 \item{mc.cores}{number of CPU cores used for parallel processing.}
 

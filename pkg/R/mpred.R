@@ -27,6 +27,14 @@
 #' @param parallel logical value that determines whether predictions for
 #'     individual settings are computed in parallel. (Does not yet work on
 #'     windows.)
+#' @param n an integer number, the number of values generated for 
+#'     an independent variable if \code{settings} is a formula.
+#'     The values form an equally spaced grid that cover the range from
+#'     the variable in \code{data}.
+#' @param trim a number between 0 and 1. The proportion of 
+#'     extreme values of variable in \code{data} that should be
+#'     trimed from the range of a generated set of values of 
+#'     an independent variable.
 #' @param mc.cores number of CPU cores used for parallel processing.
 #' @param \dots optional vectors of values of independent variabls. These
 #'     further arguments, if present, are used to create a data frame of
@@ -175,7 +183,8 @@ predmarg1.default <- function(obj,
                               setup,
                               cifunc,
                               level,
-                              parent){
+                              parent,
+                              ...){
     n <- nrow(data)
     settings.j <- settings[j,,drop=FALSE]
     nd1 <- setdiff(names(data),names(settings))
@@ -269,7 +278,8 @@ predmarg1.default_multieq <- function(obj,
                                       setup,
                                       cifunc,
                                       level,
-                                      parent){
+                                      parent,
+                                      ...){
     n <- nrow(data)
     settings.j <- settings[j,,drop=FALSE]
     nd1 <- setdiff(names(data),names(settings))
@@ -477,7 +487,7 @@ predict_response.mblogit <- function(obj,data,...){
 }
 
 #' @export
-predict_response.mclogit <- function(obj,data){
+predict_response.mclogit <- function(obj,data,...){
     mu <- predict(obj,newdata=data,type="response")
     rhs <- obj$formula[-2]
     fo <- obj$formula
@@ -530,7 +540,7 @@ predict_response.mmblogit <- function(obj,data,...){
 }
 
 #' @export
-predict_response.mmclogit <- function(obj,data){
+predict_response.mmclogit <- function(obj,data,...){
     mu <- predict(obj,newdata=data,type="response",conditional=FALSE)
     rhs <- obj$formula[-2]
     fo <- obj$formula
