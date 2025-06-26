@@ -5,8 +5,6 @@ VERSION := $(shell Rscript --vanilla -e 'cat(read.dcf(file="${SRCDIR}/DESCRIPTIO
 
 ARCHIVE := $(PACKAGE)_$(VERSION).tar.gz
 
-RCHKIMG := kalibera-rchk-master-def.simg
-
 .PHONY: all
 all: build install
 
@@ -23,7 +21,7 @@ build-wo-vignettes:
 	echo "Building ${ARCHIVE}"
 	R CMD build --no-build-vignettes $(SRCDIR)
 
-build:
+build: roxygenize
 	echo "Building ${ARCHIVE}"
 	R CMD build $(SRCDIR)
 
