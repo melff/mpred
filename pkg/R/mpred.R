@@ -5,7 +5,8 @@
 #' @import stats
 #'
 #' @param obj a model object, e.g. returned by \code{lm}, \code{glm}, etc.
-#' @param settings an optional data frame of settings for independent variables.
+#' @param settings an optional data frame of settings for independent variables
+#'  or a formula with variables for which settings are to be generated.
 #' @param data an optional data frame for which the predictive margins are
 #'     computed. If ommited, an attempt is made to obtain the data from the
 #'     model object.

@@ -147,7 +147,8 @@ predmarg1.clmm <- function(obj,
                            setup,
                            cifunc,
                            level,
-                           parent){
+                           parent,
+                           ...){
     n <- nrow(data)
     settings.j <- settings[j,,drop=FALSE]
     nd1 <- setdiff(names(data),names(settings))
