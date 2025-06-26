@@ -63,3 +63,6 @@ check-reverse:
 
 clean-reverse:
 	rm -rfv depends/*
+
+pkgdown:
+	Rscript --vanilla -e 'pkgdown::build_site(pkg="${SRCDIR}")'
