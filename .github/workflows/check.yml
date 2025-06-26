@@ -27,7 +27,6 @@ jobs:
           extra-packages: |
            any::rcmdcheck
            any::ordinal
-           any::parallel
           needs: check
 
       - uses: r-lib/actions/check-r-package@v2
