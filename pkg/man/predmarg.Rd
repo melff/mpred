@@ -18,6 +18,7 @@ predmarg(
   n = 21,
   trim = 0,
   mc.cores = if (.Platform$OS.type == "windows") 1L else max.cores,
+  predict.args = NULL,
   ...
 )
 }

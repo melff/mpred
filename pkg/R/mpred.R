@@ -74,6 +74,7 @@ predmarg <- function(obj,
                      trim=0,
                      mc.cores=if(.Platform$OS.type == "windows") 1L
                               else max.cores,
+                     predict.args = NULL,
                      ...) {
 
     cifunc <- force(cifunc)
@@ -113,7 +114,6 @@ predmarg <- function(obj,
                              n=n,
                              trim=trim,
                              ...)
-
     n <- nrow(data)
     m <- nrow(settings)
 
@@ -145,6 +145,7 @@ predmarg <- function(obj,
                            obj=obj,
                            data=data,
                            settings=settings,
+                           predict.args=predict.args,
                            groups=groups,
                            type=type,
                            setup=setup,
@@ -160,6 +161,7 @@ predmarg <- function(obj,
                          obj=obj,
                          data=data,
                          settings=settings,
+                         predict.args=predict.args,
                          groups=groups,
                          type=type,
                          setup=setup,
@@ -184,6 +186,7 @@ predmarg1.default <- function(obj,
                               cifunc,
                               level,
                               parent,
+                              predict.args=NULL,
                               ...){
     n <- nrow(data)
     settings.j <- settings[j,,drop=FALSE]
@@ -199,8 +202,7 @@ predmarg1.default <- function(obj,
         newdata[names.l] <- l
     }
     w <- newdata$.w
-    
-    mu <- predict_response(obj,newdata,type=type)
+    mu <- predict_response(obj,newdata,type=type,predict.args=predict.args)
     mu.theta <- attr(mu,"Jacobian")
     cov.theta <- vcov(obj)
 
@@ -279,6 +281,7 @@ predmarg1.default_multieq <- function(obj,
                                       cifunc,
                                       level,
                                       parent,
+                                      predict.args=NULL,
                                       ...){
     n <- nrow(data)
     settings.j <- settings[j,,drop=FALSE]
@@ -296,7 +299,7 @@ predmarg1.default_multieq <- function(obj,
     }
     w <- newdata$.w
     
-    mu <- predict_response(obj,newdata,type=type)
+    mu <- predict_response(obj,newdata,type=type,predict.args=predict.args)
     mu.theta <- attr(mu,"Jacobian")
     num.eqs <- ncol(mu)
     cov.theta <- vcov(obj)
@@ -488,7 +491,7 @@ predict_response.mblogit <- function(obj,data,...){
 
 #' @export
 predict_response.mclogit <- function(obj,data,...){
-    mu <- predict(obj,newdata=data,type="response")
+    mu <- predict(obj,newdata=data,type="response",...)
     rhs <- obj$formula[-2]
     fo <- obj$formula
     lhs <- fo[[2]]
@@ -514,8 +517,9 @@ predict_response.mclogit <- function(obj,data,...){
 }
 
 #' @export
-predict_response.mmblogit <- function(obj,data,...){
-    mu <- predict(obj,newdata=data,type="response",conditional=FALSE)
+predict_response.mmblogit <- function(obj,data, predict.args=NULL, ...){
+    predict.args <- c(list(obj,newdata=data,type="response"),predict.args)
+    mu <- do.call(predict,predict.args)
     X <- model_matrix(obj,data=data)
     # na.act <- obj$na.action
     # if(length(na.act))
@@ -540,8 +544,9 @@ predict_response.mmblogit <- function(obj,data,...){
 }
 
 #' @export
-predict_response.mmclogit <- function(obj,data,...){
-    mu <- predict(obj,newdata=data,type="response",conditional=FALSE)
+predict_response.mmclogit <- function(obj,data, predict.args=NULL, ...){
+    predict.args <- c(list(obj,newdata=data,type="response"),predict.args)
+    mu <- do.call(predict,predict.args)
     rhs <- obj$formula[-2]
     fo <- obj$formula
     lhs <- fo[[2]]
