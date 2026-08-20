@@ -252,11 +252,11 @@ settings, using <code><a href="https://rdrr.io/r/base/expand.grid.html" class="e
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Baseline category logit</span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="http://mclogit.elff.eu" class="external-link">mclogit</a></span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="http://melff.github.io/mclogit/" class="external-link">mclogit</a></span><span class="op">)</span></span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Loading required package: Matrix</span>
 <span class="r-in"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="http://www.stats.ox.ac.uk/pub/MASS4/" class="external-link">MASS</a></span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="va">mb.Chile</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/mclogit/man/mblogit.html" class="external-link">mblogit</a></span><span class="op">(</span><span class="va">vote</span><span class="op">~</span><span class="va">statusquo</span>,</span></span>
+<span class="r-in"><span><span class="va">mb.Chile</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://melff.github.io/mclogit/reference/mblogit.html" class="external-link">mblogit</a></span><span class="op">(</span><span class="va">vote</span><span class="op">~</span><span class="va">statusquo</span>,</span></span>
 <span class="r-in"><span>                    data<span class="op">=</span><span class="va">Chile</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Iteration 1 - deviance = 4528.43 - criterion = 0.22885</span>
@@ -297,7 +297,7 @@ settings, using <code><a href="https://rdrr.io/r/base/expand.grid.html" class="e
 <span class="r-plt img"><img src="predmarg-4.png" alt="" width="700" height="433"></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="va">mb.hs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/mclogit/man/mblogit.html" class="external-link">mblogit</a></span><span class="op">(</span><span class="va">Sat</span><span class="op">~</span><span class="va">Infl</span><span class="op">+</span><span class="va">Type</span><span class="op">+</span><span class="va">Cont</span>,weights<span class="op">=</span><span class="va">Freq</span>,</span></span>
+<span class="r-in"><span><span class="va">mb.hs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://melff.github.io/mclogit/reference/mblogit.html" class="external-link">mblogit</a></span><span class="op">(</span><span class="va">Sat</span><span class="op">~</span><span class="va">Infl</span><span class="op">+</span><span class="va">Type</span><span class="op">+</span><span class="va">Cont</span>,weights<span class="op">=</span><span class="va">Freq</span>,</span></span>
 <span class="r-in"><span>                 data<span class="op">=</span><span class="va">housing</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Iteration 1 - deviance = 3493.764 - criterion = 0.9614469</span>
@@ -400,7 +400,7 @@ settings, using <code><a href="https://rdrr.io/r/base/expand.grid.html" class="e
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
       </footer></div>
