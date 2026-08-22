@@ -23,5 +23,7 @@ export(get_cifunc)
 export(predmarg)
 import(parallel)
 import(stats)
-importFrom(ordinal,condVar)
-importFrom(ordinal,ranef)
+importFrom(ordinal,
+  condVar,
+  ranef
+)

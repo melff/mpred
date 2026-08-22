@@ -43,8 +43,8 @@ versions only.}
 are computed. This variable has to have the same number of observations
 as the data to which the model was fitted.}
 
-\item{setup}{an optional expression that is evaluated for each setting,
-i.e. individually for each row of the settings data frame. Can be used to
+\item{setup}{an optional expression that is evaluated for each setting, i.e.
+individually for each row of the settings data frame. Can be used to
 modify independent variables.}
 
 \item{cifunc}{a function to compute prediction intervals. By default it is
@@ -56,17 +56,18 @@ the chosen by the function of the same name.}
 individual settings are computed in parallel. (Does not yet work on
 windows.)}
 
-\item{n}{an integer number, the number of values generated for 
-an independent variable if \code{settings} is a formula.
-The values form an equally spaced grid that cover the range from
-the variable in \code{data}.}
+\item{n}{an integer number, the number of values generated for an independent
+variable if \code{settings} is a formula. The values form an equally
+spaced grid that cover the range from the variable in \code{data}.}
 
-\item{trim}{a number between 0 and 1. The proportion of 
-extreme values of variable in \code{data} that should be
-trimed from the range of a generated set of values of 
-an independent variable.}
+\item{trim}{a number between 0 and 1. The proportion of extreme values of
+variable in \code{data} that should be trimed from the range of a
+generated set of values of an independent variable.}
 
 \item{mc.cores}{number of CPU cores used for parallel processing.}
+
+\item{predict.args}{an optional list with additional arguments to internal
+calls of \code{\link{predict}}}
 
 \item{\dots}{optional vectors of values of independent variabls. These
 further arguments, if present, are used to create a data frame of

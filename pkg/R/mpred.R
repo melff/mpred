@@ -6,7 +6,7 @@
 #'
 #' @param obj a model object, e.g. returned by \code{lm}, \code{glm}, etc.
 #' @param settings an optional data frame of settings for independent variables
-#'  or a formula with variables for which settings are to be generated.
+#'     or a formula with variables for which settings are to be generated.
 #' @param data an optional data frame for which the predictive margins are
 #'     computed. If ommited, an attempt is made to obtain the data from the
 #'     model object.
@@ -15,8 +15,8 @@
 #' @param groups a variable that defines groups for which predictive margines
 #'     are computed. This variable has to have the same number of observations
 #'     as the data to which the model was fitted.
-#' @param setup an optional expression that is evaluated for each setting,
-#'     i.e. individually for each row of the settings data frame. Can be used to
+#' @param setup an optional expression that is evaluated for each setting, i.e.
+#'     individually for each row of the settings data frame. Can be used to
 #'     modify independent variables.
 #' @param type an optional character string that specifies the type of
 #'     predictions, e.g. probabilities or cumulative probabilites. For future
@@ -27,15 +27,15 @@
 #' @param parallel logical value that determines whether predictions for
 #'     individual settings are computed in parallel. (Does not yet work on
 #'     windows.)
-#' @param n an integer number, the number of values generated for 
-#'     an independent variable if \code{settings} is a formula.
-#'     The values form an equally spaced grid that cover the range from
-#'     the variable in \code{data}.
-#' @param trim a number between 0 and 1. The proportion of 
-#'     extreme values of variable in \code{data} that should be
-#'     trimed from the range of a generated set of values of 
-#'     an independent variable.
+#' @param n an integer number, the number of values generated for an independent
+#'     variable if \code{settings} is a formula. The values form an equally
+#'     spaced grid that cover the range from the variable in \code{data}.
+#' @param trim a number between 0 and 1. The proportion of extreme values of
+#'     variable in \code{data} that should be trimed from the range of a
+#'     generated set of values of an independent variable.
 #' @param mc.cores number of CPU cores used for parallel processing.
+#' @param predict.args an optional list with additional arguments to internal
+#'     calls of \code{\link{predict}}
 #' @param \dots optional vectors of values of independent variabls. These
 #'     further arguments, if present, are used to create a data frame of
 #'     settings, using \code{\link{expand.grid}}.
